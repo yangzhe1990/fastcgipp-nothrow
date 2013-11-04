@@ -33,6 +33,7 @@ void Fastcgipp::ManagerPar::stop()
 	}
 }
 
+// extern "C"
 void Fastcgipp::ManagerPar::signalHandler(int signum)
 {
 	switch(signum)
@@ -43,6 +44,11 @@ void Fastcgipp::ManagerPar::signalHandler(int signum)
 			break;
 		}
 		case SIGTERM:
+		{
+			if(instance) instance->stop();
+			break;
+		}
+		case SIGINT:
 		{
 			if(instance) instance->stop();
 			break;
@@ -58,6 +64,7 @@ void Fastcgipp::ManagerPar::setupSignals()
 	sigAction.sa_flags=0;
 
 	sigaction(SIGPIPE, &sigAction, NULL);
+	sigaction(SIGINT, &sigAction, NULL);
 	sigaction(SIGUSR1, &sigAction, NULL);
 	sigaction(SIGTERM, &sigAction, NULL);
 }
@@ -68,10 +75,10 @@ void Fastcgipp::ManagerPar::localHandler(Protocol::FullId id)
 	using namespace Protocol;
 	Message message(messages.front());
 	messages.pop();
-	
+
 	if(!message.type)
 	{
-		const Header& header=*(Header*)message.data.get(); 
+		const Header& header=*(Header*)message.data.get();
 		switch(header.getType())
 		{
 			case GET_VALUES:

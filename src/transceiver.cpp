@@ -1,21 +1,21 @@
 //! \file transceiver.cpp Defines member functions for Fastcgipp::Transceiver
 /***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
+* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]			   *
+*									   *
+* This file is part of fastcgi++.					   *
+*									   *
+* fastcgi++ is free software: you can redistribute it and/or modify it	   *
 * under the terms of the GNU Lesser General Public License as  published   *
 * by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
+* your option) any later version.					   *
+*									   *
 * fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or	   *
+* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public	   *
+* License for more details.						   *
+*									   *
 * You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
+* along with fastcgi++.	 If not, see <http://www.gnu.org/licenses/>.	   *
 ****************************************************************************/
 
 
@@ -24,7 +24,7 @@
 int Fastcgipp::Transceiver::transmit()
 {
 	while(1)
-	{{
+	{
 		Buffer::SendBlock sendBlock(buffer.requestRead());
 		if(sendBlock.size)
 		{
@@ -45,7 +45,7 @@ int Fastcgipp::Transceiver::transmit()
 		}
 		else
 			break;
-	}}
+	}
 
 	return buffer.empty();
 }
@@ -75,27 +75,33 @@ bool Fastcgipp::Transceiver::handler()
 		else return false;
 	}
 	if(retVal<0) throw Exceptions::SocketPoll(errno);
-	
+
 	std::vector<pollfd>::iterator pollFd = find_if(pollFds.begin(), pollFds.end(), reventsZero);
 
 	if(pollFd->revents & (POLLHUP|POLLERR|POLLNVAL) )
 	{
+		if (pollFd->fd == socket)
+			throw "listen socket error.";
 		fdBuffers.erase(pollFd->fd);
 		pollFds.erase(pollFd);
 		return false;
 	}
-	
+
 	int fd=pollFd->fd;
 	if(fd==socket)
 	{
 		sockaddr_un addr;
 		socklen_t addrlen=sizeof(sockaddr_un);
+		// FIXME: shouldn't accept if there are already a lot of fd's opening
 		fd=accept(fd, (sockaddr*)&addr, &addrlen);
-		fcntl(fd, F_SETFL, (fcntl(fd, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
-		
+		//fcntl(fd, F_SETFL, O_NONBLOCK);
+		// I'm afraid that the async didn't work at all.
+
 		pollFds.push_back(pollfd());
 		pollFds.back().fd = fd;
 		pollFds.back().events = POLLIN|POLLHUP|POLLERR|POLLNVAL;
+
+		// now, all the iterator to the pollFds are invalidated.
 
 		Message& messageBuffer=fdBuffers[fd].messageBuffer;
 		messageBuffer.size=0;
@@ -107,7 +113,7 @@ bool Fastcgipp::Transceiver::handler()
 		read(wakeUpFdIn, &x, 1);
 		return false;
 	}
-	
+
 	Message& messageBuffer=fdBuffers[fd].messageBuffer;
 	Header& headerBuffer=fdBuffers[fd].headerBuffer;
 
@@ -117,13 +123,18 @@ bool Fastcgipp::Transceiver::handler()
 	{
 		// Are we recieving a partial header or new?
 		actual=read(fd, (char*)&headerBuffer+messageBuffer.size, sizeof(Header)-messageBuffer.size);
+		if(errno==EPIPE || errno==EBADF) {
+			fdBuffers.erase( fd );
+			//pollFds.erase( pollFd );
+			return false;
+		}
 		if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
 		if(actual>0) messageBuffer.size+=actual;
-		
+
 		if( actual == 0 )
 		{
-			fdBuffers.erase( pollFd->fd );
-			pollFds.erase( pollFd );
+			fdBuffers.erase( fd );
+			//pollFds.erase( pollFd );
 			return false;
 		}
 
@@ -140,12 +151,17 @@ bool Fastcgipp::Transceiver::handler()
 	const Header& header=*(const Header*)messageBuffer.data.get();
 	size_t needed=header.getContentLength()+header.getPaddingLength()+sizeof(Header)-messageBuffer.size;
 	actual=read(fd, messageBuffer.data.get()+messageBuffer.size, needed);
+	if(errno==EPIPE || errno==EBADF) {
+		fdBuffers.erase( fd );
+		//pollFds.erase( pollFd );
+		return false;
+	}
 	if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
 	if(actual>0) messageBuffer.size+=actual;
 
 	// Did we recieve a full frame?
 	if(actual==(ssize_t)needed)
-	{		
+	{
 		sendMessage(FullId(headerBuffer.getRequestId(), fd), messageBuffer);
 		messageBuffer.size=0;
 		messageBuffer.data.reset();
@@ -196,14 +212,14 @@ Fastcgipp::Transceiver::Transceiver(int fd_, boost::function<void(Protocol::Full
 :buffer(pollFds, fdBuffers), sendMessage(sendMessage_), pollFds(2), socket(fd_)
 {
 	socket=fd_;
-	
+
 	// Let's setup a in/out socket for waking up poll()
 	int socPair[2];
 	socketpair(AF_UNIX, SOCK_STREAM, 0, socPair);
 	wakeUpFdIn=socPair[0];
-	fcntl(wakeUpFdIn, F_SETFL, (fcntl(wakeUpFdIn, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);	
-	wakeUpFdOut=socPair[1];	
-	
+	fcntl(wakeUpFdIn, F_SETFL, (fcntl(wakeUpFdIn, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
+	wakeUpFdOut=socPair[1];
+
 	fcntl(socket, F_SETFL, (fcntl(socket, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
 	pollFds[0].events = POLLIN|POLLHUP;
 	pollFds[0].fd = socket;
@@ -319,7 +335,8 @@ void Fastcgipp::Transceiver::freeFd(int fd, std::vector<pollfd>& pollFds, std::m
 	if(it != pollFds.end())
 	{
 		pollFds.erase(it);
-		close(fd);
 		fdBuffers.erase(fd);
 	}
+	close(fd);
+	// I don't care about multiple close at this moment.
 }
