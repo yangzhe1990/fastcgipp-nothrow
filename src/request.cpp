@@ -1,21 +1,21 @@
 //! \file request.cpp Defines member functions for Fastcgipp::Fcgistream and Fastcgipp::Request
 /***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
+* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]			   *
+*									   *
+* This file is part of fastcgi++.					   *
+*									   *
+* fastcgi++ is free software: you can redistribute it and/or modify it	   *
 * under the terms of the GNU Lesser General Public License as  published   *
 * by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
+* your option) any later version.					   *
+*									   *
 * fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or	   *
+* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public	   *
+* License for more details.						   *
+*									   *
 * You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
+* along with fastcgi++.	 If not, see <http://www.gnu.org/licenses/>.	   *
 ****************************************************************************/
 
 #include <fastcgi++/request.hpp>
@@ -36,7 +36,7 @@ template<class charT> void Fastcgipp::Request<charT>::complete()
 	header.setRequestId(id.fcgiId);
 	header.setContentLength(sizeof(EndRequest));
 	header.setPaddingLength(0);
-	
+
 	EndRequest& body=*(EndRequest*)(buffer.data+sizeof(Header));
 	body.setAppStatus(0);
 	body.setProtocolStatus(REQUEST_COMPLETE);
@@ -51,19 +51,20 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 	using namespace Protocol;
 	using namespace std;
 
+	// FIXME: if webserver send ABORT to us, our overloaded response() will not be called in future. So don't assume that the response will finish. (But the request will be deconstructed later)
 	try
 	{
 		if(!(role()==RESPONDER || role()==AUTHORIZER))
 		{
 			Block buffer(transceiver->requestWrite(sizeof(Header)+sizeof(EndRequest)));
-			
+
 			Header& header=*(Header*)buffer.data;
 			header.setVersion(Protocol::version);
 			header.setType(END_REQUEST);
 			header.setRequestId(id.fcgiId);
 			header.setContentLength(sizeof(EndRequest));
 			header.setPaddingLength(0);
-			
+
 			EndRequest& body=*(EndRequest*)(buffer.data+sizeof(Header));
 			body.setAppStatus(0);
 			body.setProtocolStatus(UNKNOWN_ROLE);
@@ -87,7 +88,7 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 				case PARAMS:
 				{
 					if(state!=PARAMS) throw Exceptions::RecordsOutOfOrder();
-					if(header.getContentLength()==0) 
+					if(header.getContentLength()==0)
 					{
 						if(m_maxPostSize && environment().contentLength > m_maxPostSize)
 						{
@@ -156,18 +157,18 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 			return true;
 		}
 	}
-	catch(const std::exception& e)
+	catch(...)
 	{
-		errorHandler(e);
+		errorHandler(std::current_exception());
 		complete();
 		return true;
 	}
 	return false;
 }
 
-template void Fastcgipp::Request<char>::errorHandler(const std::exception& error);
-template void Fastcgipp::Request<wchar_t>::errorHandler(const std::exception& error);
-template<class charT> void Fastcgipp::Request<charT>::errorHandler(const std::exception& error)
+template void Fastcgipp::Request<char>::errorHandler(std::exception_ptr eptr);
+template void Fastcgipp::Request<wchar_t>::errorHandler(std::exception_ptr eptr);
+template<class charT> void Fastcgipp::Request<charT>::errorHandler(std::exception_ptr eptr)
 {
 		out << \
 "Status: 500 Internal Server Error\n"\
@@ -182,7 +183,16 @@ template<class charT> void Fastcgipp::Request<charT>::errorHandler(const std::ex
 	"</body>"\
 "</html>";
 
-		err << '"' << error.what() << '"' << " from \"http://" << environment().host << environment().requestUri << "\" with a " << environment().requestMethod << " request method.";
+		try {
+			if (eptr != std::exception_ptr())
+				std::rethrow_exception(eptr);
+		}
+		catch (const std::exception &error) {
+			err << '"' << error.what() << '"' << " from \"http://" << environment().host << environment().requestUri << "\" with a " << environment().requestMethod << " request method.";
+		}
+		catch (...) {
+			err << "an unrecognized exception from \"http://" << environment().host << environment().requestUri << "\" with a " << environment().requestMethod << " request method.";
+		}
 }
 
 template void Fastcgipp::Request<char>::bigPostErrorHandler();

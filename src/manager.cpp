@@ -3,7 +3,7 @@
 
 Fastcgipp::ManagerPar* Fastcgipp::ManagerPar::instance=0;
 
-Fastcgipp::ManagerPar::ManagerPar(int fd, const boost::function<void(Protocol::FullId, Message)>& sendMessage_, bool doSetupSignals): transceiver(fd, sendMessage_), asleep(false), stopBool(false), terminateBool(false)
+Fastcgipp::ManagerPar::ManagerPar(int fd, const boost::function<void(Protocol::FullId, Message)>& sendMessage_, bool doSetupSignals): transceiver(fd, sendMessage_), stopBool(false), terminateBool(false)
 {
 	if(doSetupSignals) setupSignals();
 	instance=this;
@@ -11,26 +11,14 @@ Fastcgipp::ManagerPar::ManagerPar(int fd, const boost::function<void(Protocol::F
 
 void Fastcgipp::ManagerPar::terminate()
 {
-	boost::lock_guard<boost::mutex> terminateLock(terminateMutex);
-	boost::lock_guard<boost::mutex> sleepLock(sleepMutex);
 	terminateBool=true;
-	if(asleep)
-	{
-		transceiver.wake();
-		asleep=false;
-	}
+	transceiver.wake();
 }
 
 void Fastcgipp::ManagerPar::stop()
 {
-	boost::lock_guard<boost::mutex> stopLock(stopMutex);
-	boost::lock_guard<boost::mutex> sleepLock(sleepMutex);
 	stopBool=true;
-	if(asleep)
-	{
-		transceiver.wake();
-		asleep=false;
-	}
+	transceiver.wake();
 }
 
 // extern "C"

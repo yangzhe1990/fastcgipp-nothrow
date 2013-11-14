@@ -82,8 +82,9 @@ bool Fastcgipp::Transceiver::handler()
 	{
 		if (pollFd->fd == socket)
 			throw "listen socket error.";
-		fdBuffers.erase(pollFd->fd);
-		pollFds.erase(pollFd);
+		//fdBuffers.erase(pollFd->fd);
+		//pollFds.erase(pollFd);
+		freeFd(pollFd->fd);
 		return false;
 	}
 
@@ -101,6 +102,10 @@ bool Fastcgipp::Transceiver::handler()
 		pollFds.back().fd = fd;
 		pollFds.back().events = POLLIN|POLLHUP|POLLERR|POLLNVAL;
 
+		// FIXME: hard coded uplimit of the number of opened sockets
+		if (pollFds.size() >= 102)
+			pollFd->events = POLLHUP;
+
 		// now, all the iterator to the pollFds are invalidated.
 
 		Message& messageBuffer=fdBuffers[fd].messageBuffer;
@@ -110,7 +115,9 @@ bool Fastcgipp::Transceiver::handler()
 	else if(fd==wakeUpFdIn)
 	{
 		char x;
-		read(wakeUpFdIn, &x, 1);
+		while (read(wakeUpFdIn, &x, 1) > 0);
+
+		// FIXME: why return?
 		return false;
 	}
 
@@ -123,9 +130,10 @@ bool Fastcgipp::Transceiver::handler()
 	{
 		// Are we recieving a partial header or new?
 		actual=read(fd, (char*)&headerBuffer+messageBuffer.size, sizeof(Header)-messageBuffer.size);
-		if(errno==EPIPE || errno==EBADF) {
-			fdBuffers.erase( fd );
+		if(actual < 0 && (errno==EPIPE || errno==EBADF)) {
+			//fdBuffers.erase( fd );
 			//pollFds.erase( pollFd );
+			freeFd(fd);
 			return false;
 		}
 		if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
@@ -133,8 +141,9 @@ bool Fastcgipp::Transceiver::handler()
 
 		if( actual == 0 )
 		{
-			fdBuffers.erase( fd );
+			//fdBuffers.erase( fd );
 			//pollFds.erase( pollFd );
+			freeFd(fd);
 			return false;
 		}
 
@@ -151,9 +160,10 @@ bool Fastcgipp::Transceiver::handler()
 	const Header& header=*(const Header*)messageBuffer.data.get();
 	size_t needed=header.getContentLength()+header.getPaddingLength()+sizeof(Header)-messageBuffer.size;
 	actual=read(fd, messageBuffer.data.get()+messageBuffer.size, needed);
-	if(errno==EPIPE || errno==EBADF) {
-		fdBuffers.erase( fd );
+	if(actual < 0 && (errno==EPIPE || errno==EBADF)) {
+		//fdBuffers.erase( fd );
 		//pollFds.erase( pollFd );
+		freeFd(fd);
 		return false;
 	}
 	if(actual<0 && errno!=EAGAIN) throw Exceptions::SocketRead(fd, errno);
@@ -217,10 +227,10 @@ Fastcgipp::Transceiver::Transceiver(int fd_, boost::function<void(Protocol::Full
 	int socPair[2];
 	socketpair(AF_UNIX, SOCK_STREAM, 0, socPair);
 	wakeUpFdIn=socPair[0];
-	fcntl(wakeUpFdIn, F_SETFL, (fcntl(wakeUpFdIn, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
+	fcntl(wakeUpFdIn, F_SETFL, O_NONBLOCK);
 	wakeUpFdOut=socPair[1];
 
-	fcntl(socket, F_SETFL, (fcntl(socket, F_GETFL)|O_NONBLOCK)^O_NONBLOCK);
+	fcntl(socket, F_SETFL, O_NONBLOCK);
 	pollFds[0].events = POLLIN|POLLHUP;
 	pollFds[0].fd = socket;
 	pollFds[1].events = POLLIN|POLLHUP;
@@ -338,5 +348,10 @@ void Fastcgipp::Transceiver::freeFd(int fd, std::vector<pollfd>& pollFds, std::m
 		fdBuffers.erase(fd);
 	}
 	close(fd);
+
+	// now we can accept now connection
+	pollFds[0].events |= POLLIN;
 	// I don't care about multiple close at this moment.
+
+	// FIXME: possible situation: a new accepted fd is closed by a delayed freeFd
 }

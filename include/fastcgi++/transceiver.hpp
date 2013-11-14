@@ -1,21 +1,21 @@
 //! \file transceiver.hpp Defines the Fastcgipp::Transceiver class
 /***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
+* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]			   *
+*									   *
+* This file is part of fastcgi++.					   *
+*									   *
+* fastcgi++ is free software: you can redistribute it and/or modify it	   *
 * under the terms of the GNU Lesser General Public License as  published   *
 * by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
+* your option) any later version.					   *
+*									   *
 * fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or	   *
+* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public	   *
+* License for more details.						   *
+*									   *
 * You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
+* along with fastcgi++.	 If not, see <http://www.gnu.org/licenses/>.	   *
 ****************************************************************************/
 
 
@@ -107,7 +107,7 @@ namespace Fastcgipp
 		{
 			poll(&pollFds.front(), pollFds.size(), -1);
 		}
-		
+
 		//! Forces a wakeup from a call to sleep()
 		void wake();
 
@@ -126,7 +126,7 @@ namespace Fastcgipp
 		 * This buffer is implemented as a circle of Chunk objects; the number of which can grow and shrink as needed. Write
 		 * space is requested with requestWrite() which thereby returns a Block which may be smaller
 		 * than requested. The write is committed by calling secureWrite(). A smaller space can be
-		 * committed than was given to write on. 
+		 * committed than was given to write on.
 		 *
 		 * All data written to the buffer has an associated file descriptor through which it
 		 * is flushed. File descriptor association with data is managed through a queue of Frame
@@ -166,9 +166,9 @@ namespace Fastcgipp
 				char* end;
 				//! Creates a new data chunk
 				Chunk(): data(new char[size]), end(data.get()) { }
-				~Chunk() { } 
+				~Chunk() { }
 				//! Creates a new object that shares the data of the old one
-				Chunk(const Chunk& chunk): data(chunk.data), end(data.get()) { } 
+				Chunk(const Chunk& chunk): data(chunk.data), end(data.get()) { }
 			};
 
 			//! A list of chunks. Can contain from 2-infinity
@@ -184,7 +184,7 @@ namespace Fastcgipp
 			//! A reference to Transceiver::fdBuffer for deleting buffers upon closing of the file descriptor
 			std::map<int, fdBuffer>& fdBuffers;
 			//! Helper function for freeFd(int fd, std::vector<pollfd> pollFds, std::map<int, fdBuffer> fdBuffers)
-			void freeFd(int fd_) { Fastcgipp::Transceiver::freeFd(fd_, pollFds, fdBuffers);  }
+			void freeFd(int fd_) { Fastcgipp::Transceiver::freeFd(fd_, pollFds, fdBuffers);	 }
 		public:
 			//! Constructor
 			/*!
@@ -258,7 +258,11 @@ namespace Fastcgipp
 		Buffer buffer;
 		//! Function to call to pass messages to requests
 		boost::function<void(Protocol::FullId, Message)> sendMessage;
-		
+
+		//! connected Fds
+		std::vector<int> connectedFds;
+		// FIXME: and fd to requests list for erasing
+
 		//! poll() file descriptors container
 		std::vector<pollfd> pollFds;
 		//! Socket to listen for connections on
@@ -267,10 +271,10 @@ namespace Fastcgipp
 		int wakeUpFdIn;
 		//! Output file descriptor to the wakeup socket pair
 		int wakeUpFdOut;
-		
+
 		//! Container associating file descriptors with their receive buffers
 		std::map<int, fdBuffer> fdBuffers;
-		
+
 		//! Transmit all buffered data possible
 		int transmit();
 
@@ -282,6 +286,10 @@ namespace Fastcgipp
 		 * to call this function at any time with any fd(even bad ones).
 		 * If requests still exists with this fd then they will be lost.
 		 *
+		 * FIXME: but if a new socket is open with the same fd
+		 * number, the message will be send to the wrong
+		 * socket.
+		 *
 		 * @param fd File descriptor to delete/free up
 		 * @param pollFds Epoll container
 		 * @param fdBuffers Container of fd/pipe buffers
@@ -289,9 +297,9 @@ namespace Fastcgipp
 		static void freeFd(int fd, std::vector<pollfd>& pollFds, std::map<int, fdBuffer>& fdBuffers);
 
 		//! Helper function for freeFd(int fd, std::vector<pollfd> pollFds, std::map<int, fdBuffer> fdBuffers)
-		void freeFd(int fd_) { freeFd(fd_, pollFds, fdBuffers);  }
+		void freeFd(int fd_) { freeFd(fd_, pollFds, fdBuffers);	 }
 	};
-	
+
 	//! Predicate for comparing the file descriptor of a pollfd
 	struct equalsFd : public std::unary_function<pollfd, bool>
 	{
@@ -299,7 +307,7 @@ namespace Fastcgipp
 		explicit equalsFd(int fd_): fd(fd_) {}
 		bool operator()(const pollfd& x) const { return x.fd==fd; };
 	};
-	
+
 	//! Predicate for testing if the revents in a pollfd is non-zero
 	inline bool reventsZero(const pollfd& x)
 	{
@@ -320,7 +328,7 @@ namespace Fastcgipp
 			//! File descriptor of socket
 			const int fd;
 		};
-		
+
 		//! %Exception for write errors to sockets
 		struct SocketWrite: public Socket
 		{
@@ -331,7 +339,7 @@ namespace Fastcgipp
 			 */
 			SocketWrite(int fd_, int erno_);
 		};
-		
+
 		//! %Exception for read errors to sockets
 		struct SocketRead: public Socket
 		{
@@ -342,7 +350,7 @@ namespace Fastcgipp
 			 */
 			SocketRead(int fd_, int erno_);
 		};
-		
+
 		//! %Exception for poll() errors
 		struct SocketPoll: public CodedException
 		{

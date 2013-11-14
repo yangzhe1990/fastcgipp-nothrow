@@ -1,21 +1,21 @@
 //! \file request.hpp Defines the Fastcgipp::Request class
 /***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
+* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]			   *
+*									   *
+* This file is part of fastcgi++.					   *
+*									   *
+* fastcgi++ is free software: you can redistribute it and/or modify it	   *
 * under the terms of the GNU Lesser General Public License as  published   *
 * by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
+* your option) any later version.					   *
+*									   *
 * fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or	   *
+* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public	   *
+* License for more details.						   *
+*									   *
 * You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
+* along with fastcgi++.	 If not, see <http://www.gnu.org/licenses/>.	   *
 ****************************************************************************/
 
 
@@ -26,6 +26,7 @@
 #include <map>
 #include <string>
 #include <locale>
+#include <exception>
 
 #include <boost/shared_array.hpp>
 #include <boost/thread.hpp>
@@ -51,7 +52,7 @@ namespace Fastcgipp
 	 * At minimum, derivations of this class must define response().
 	 *
 	 * If you want to use UTF-8 encoding pass wchar_t as the template
-	 * argument, use setloc() to setup a UTF-8 locale and use wide 
+	 * argument, use setloc() to setup a UTF-8 locale and use wide
 	 * character unicode internally for everything. If you want to use
 	 * a 8bit character set encoding pass char as the template argument and
 	 * setloc() a locale with the corresponding character set.
@@ -74,7 +75,7 @@ namespace Fastcgipp
 
 		// To dump data into the stream without it being code converted and bypassing the stream buffer call Fcgistream::dump(char* data, size_t size)
 		// or Fcgistream::dump(std::basic_istream<char>& stream)
-		
+
 		//! Standard output stream to the client
 		/*!
 		 * To dump data directly through the stream without it being code converted and bypassing the stream buffer call Fcgistream::dump()
@@ -95,7 +96,7 @@ namespace Fastcgipp
 		 *
 		 * @param[in] error Exception caught
 		 */
-		virtual void errorHandler(const std::exception& error);
+		virtual void errorHandler(std::exception_ptr eptr);
 
 		//! Called when too much post data is recieved.
 		virtual void bigPostErrorHandler();
@@ -260,7 +261,7 @@ namespace Fastcgipp
 	//! Includes all exceptions used by the fastcgi++ library
 	namespace Exceptions
 	{
-		/** 
+		/**
 		 * @brief Thrown if FastCGI records are received out of order.
 		 */
 		struct RecordsOutOfOrder: public std::exception
@@ -268,7 +269,7 @@ namespace Fastcgipp
 			const char* what() const throw() { return "FastCGI records received out of order from server."; }
 		};
 
-		/** 
+		/**
 		 * @brief Thrown if a incoming content type is unknown
 		 */
 		struct UnknownContentType: public std::exception

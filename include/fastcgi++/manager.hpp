@@ -1,21 +1,21 @@
 //! \file manager.hpp Defines the Fastcgipp::Manager class
 /***************************************************************************
-* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]                       *
-*                                                                          *
-* This file is part of fastcgi++.                                          *
-*                                                                          *
-* fastcgi++ is free software: you can redistribute it and/or modify it     *
+* Copyright (C) 2007 Eddie Carle [eddie@erctech.org]			   *
+*									   *
+* This file is part of fastcgi++.					   *
+*									   *
+* fastcgi++ is free software: you can redistribute it and/or modify it	   *
 * under the terms of the GNU Lesser General Public License as  published   *
 * by the Free Software Foundation, either version 3 of the License, or (at *
-* your option) any later version.                                          *
-*                                                                          *
+* your option) any later version.					   *
+*									   *
 * fastcgi++ is distributed in the hope that it will be useful, but WITHOUT *
-* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or    *
-* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public     *
-* License for more details.                                                *
-*                                                                          *
+* ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or	   *
+* FITNESS FOR A PARTICULAR PURPOSE.  See the GNU Lesser General Public	   *
+* License for more details.						   *
+*									   *
 * You should have received a copy of the GNU Lesser General Public License *
-* along with fastcgi++.  If not, see <http://www.gnu.org/licenses/>.       *
+* along with fastcgi++.	 If not, see <http://www.gnu.org/licenses/>.	   *
 ****************************************************************************/
 
 
@@ -86,7 +86,7 @@ namespace Fastcgipp
 
 		//! Terminator for the handler() function
 		/*!
-		 * This function is intended to be called from  a signal handler in the case of
+		 * This function is intended to be called from	a signal handler in the case of
 		 * of a SIGUSR1. It is similar to stop() except that handler() will wait until
 		 * all requests are complete before halting.
 		 *
@@ -94,7 +94,7 @@ namespace Fastcgipp
 		 * @sa signalHandler()
 		 */
 		void terminate();
-		
+
 		//! Configure the handlers for POSIX signals
 		/*!
 		 * By calling this function appropriate handlers will be set up for SIGPIPE, SIGUSR1 and
@@ -138,31 +138,17 @@ namespace Fastcgipp
 		 */
 		void localHandler(Protocol::FullId id);
 
-		//! Indicated whether or not the manager is currently in sleep mode
-		bool asleep;
-		//! Mutex to make accessing asleep thread safe
-		boost::mutex sleepMutex;
-		//! The pthread id of the thread the handler() function is operating in.
-		/*!
-		 * Although this library is intended to be used with boost::thread and not pthread, the underlying
-		 * pthread id of the %handler() function is needed to call pthread_kill() when sleep is to be interrupted.
-		 */
-		pthread_t threadId;
 
 		//! Boolean value indicating that handler() should halt
 		/*!
 		 * @sa stop()
 		 */
-		bool stopBool;
-		//! Mutex to make stopBool thread safe
-		boost::mutex stopMutex;
+		volatile bool stopBool;
 		//! Boolean value indication that handler() should terminate
 		/*!
 		 * @sa terminate()
 		 */
-		bool terminateBool;
-		//! Mutex to make terminateMutex thread safe
-		boost::mutex terminateMutex;
+		volatile bool terminateBool;
 
 	private:
 		//! General function to handler POSIX signals
@@ -170,7 +156,7 @@ namespace Fastcgipp
 		//! Pointer to the %Manager object
 		static ManagerPar* instance;
 	};
-	
+
 	//! General task and protocol management class
 	/*!
 	 * Handles all task and protocol management, creation/destruction
@@ -285,9 +271,7 @@ template<class T> void Fastcgipp::Manager<T>::push(Protocol::FullId id, Message 
 		tasks.push(id);
 	}
 
-	boost::lock_guard<boost::mutex> sleepLock(sleepMutex);
-	if(asleep)
-		transceiver.wake();
+	transceiver.wake();
 }
 
 template<class T> void Fastcgipp::Manager<T>::handler()
@@ -295,23 +279,19 @@ template<class T> void Fastcgipp::Manager<T>::handler()
 	using namespace std;
 	using namespace boost;
 
-	threadId=pthread_self();
-
 	while(1)
 	{{
 		{
-			boost::lock_guard<boost::mutex> stopLock(stopMutex);
 			if(stopBool)
 			{
 				stopBool=false;
 				return;
 			}
 		}
-		
+
 		bool sleep=transceiver.handler();
 
 		{
-			boost::lock_guard<boost::mutex> terminateLock(terminateMutex);
 			if(terminateBool)
 			{
 				shared_lock<shared_mutex> requestsLock(requests);
@@ -323,30 +303,19 @@ template<class T> void Fastcgipp::Manager<T>::handler()
 			}
 		}
 
-		boost::unique_lock<boost::mutex> tasksLock(tasks);
-		boost::unique_lock<boost::mutex> sleepLock(sleepMutex);
-
-		if(tasks.empty())
+		Protocol::FullId id;
 		{
-			tasksLock.unlock();
+			boost::lock_guard<boost::mutex> tasksLock(tasks);
 
-			asleep=true;
-			sleepLock.unlock();
+			if(tasks.empty())
+			{
+				if(sleep) transceiver.sleep();
+				continue;
+			}
 
-			if(sleep) transceiver.sleep();
-
-			sleepLock.lock();
-			asleep=false;
-			sleepLock.unlock();
-
-			continue;
+			id = tasks.front();
+			tasks.pop();
 		}
-
-		sleepLock.unlock();
-
-		Protocol::FullId id=tasks.front();
-		tasks.pop();
-		tasksLock.unlock();
 
 		if(id.fcgiId==0)
 			localHandler(id);

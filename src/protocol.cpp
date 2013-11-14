@@ -40,8 +40,8 @@ void Fastcgipp::Protocol::processParamHeader(const char* data, size_t dataSize, 
 	value=name+nameSize;
 }
 
-Fastcgipp::Protocol::ManagementReply<14, 2, 8> Fastcgipp::Protocol::maxConnsReply("FCGI_MAX_CONNS", "10");
-Fastcgipp::Protocol::ManagementReply<13, 2, 1> Fastcgipp::Protocol::maxReqsReply("FCGI_MAX_REQS", "50");
+Fastcgipp::Protocol::ManagementReply<14, 2, 8> Fastcgipp::Protocol::maxConnsReply("FCGI_MAX_CONNS", "100");
+Fastcgipp::Protocol::ManagementReply<13, 2, 1> Fastcgipp::Protocol::maxReqsReply("FCGI_MAX_REQS", "500");
 Fastcgipp::Protocol::ManagementReply<15, 1, 8> Fastcgipp::Protocol::mpxsConnsReply("FCGI_MPXS_CONNS", "1");
 
 const char* Fastcgipp::Protocol::recordTypeLabels[] = { "INVALID", "BEGIN_REQUEST", "ABORT_REQUEST", "END_REQUEST", "PARAMS", "IN", "OUT", "ERR", "DATA", "GET_VALUES", "GET_VALUES_RESULT", "UNKNOWN_TYPE" };
