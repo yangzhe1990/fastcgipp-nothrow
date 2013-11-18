@@ -261,8 +261,9 @@ template<class T> void Fastcgipp::Manager<T>::push(Protocol::FullId id, Message 
 				request.reset(new T);
 				request->set(id, transceiver, body.getRole(), !body.getKeepConn(), boost::bind(&Manager::push, boost::ref(*this), id, _1));
 			}
-			else
+			else {
 				return;
+			}
 		}
 	}
 	else
@@ -305,10 +306,11 @@ template<class T> void Fastcgipp::Manager<T>::handler()
 
 		Protocol::FullId id;
 		{
-			boost::lock_guard<boost::mutex> tasksLock(tasks);
+			boost::unique_lock<boost::mutex> tasksLock(tasks);
 
 			if(tasks.empty())
 			{
+				tasksLock.unlock();
 				if(sleep) transceiver.sleep();
 				continue;
 			}

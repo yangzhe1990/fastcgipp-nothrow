@@ -75,8 +75,9 @@ template<class charT> bool Fastcgipp::Request<charT>::handler()
 
 		{
 			boost::lock_guard<boost::mutex> lock(messages);
-			if (messages.size() == 0)
+			if (messages.size() == 0) {
 				return false;
+			}
 			m_message=messages.front();
 			messages.pop();
 		}
